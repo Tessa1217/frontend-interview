@@ -8,60 +8,46 @@ React, JavaScript, TypeScript, 브라우저 동작 원리, CSS 등 프론트엔�
 
 ## 📚 목차
 
-### 1. [Basics - HTML, CSS & Browser](./basics/)
+### 1. Basics - HTML, CSS & Browser
 
 - [CSS](./basics/css.md)
-  - px, em, rem 차이
-  - 반응형 브레이크포인트
-  - Flexbox vs Grid
-  - CSS-in-JS
 - [브라우저 렌더링](./basics/rendering.md)
-  - 렌더링 과정 (Critical Rendering Path)
-  - Reflow vs Repaint
-  - 레이어 합성 (Composite)
-  - 성능 최적화
 
-### 2. [JavaScript](./javascript/)
+### 2. JavaScript
 
 - [JavaScript 기초](./javascript/javascript-basics.md)
-  - undefined vs null
-  - var, let, const 차이
-  - 호이스팅 (Hoisting)
-  - 이벤트 루프 (Event Loop)
-  - 마이크로태스크 vs 매크로태스크
+  - undefined vs null, var/let/const, 호이스팅
+  - 클로저 (Closure), 메모리 관리
+  - 이벤트 루프, 마이크로태스크/매크로태스크
+- [JavaScript 심화](./javascript/javascript-advanced.md)
+  - 프로토타입 체이닝
+  - typeof vs instanceof, Symbol.hasInstance
+  - WeakMap과 WeakRef
 
-### 3. [TypeScript](./typescript/)
+### 3. TypeScript
 
 - [TypeScript 기초](./typescript/typescript.md)
-  - type vs interface
-  - 제네릭 (Generics)
-  - 유틸리티 타입
 
-### 4. [React](./react/)
+### 4. React
 
 - [React 핵심 개념](./react/react-core.md)
-  - 라이프사이클
-  - Props vs State
-  - 고차 컴포넌트 (HOC)
-  - Custom Hooks
 - [React 성능 최적화](./react/react-performance.md)
   - Virtual DOM & Reconciliation
-  - 리스트 렌더링과 key
+  - setState 배치 업데이트 (React 18)
   - React.memo, useMemo, useCallback
-  - Code Splitting
 - [React 최신 기능](./react/react-modern.md)
-  - React Server Components
-  - Suspense 동작 원리
-  - useTransition
-  - use() hook (React 19)
 
-### 5. [Vue](./vue/)
+### 5. Vue
 
-- [Vue 핵심 개념](./vue/vue-core.md) (준비 중)
-  - Composition API vs Options API
-  - Reactivity System
-  - 라이프사이클 훅
-- [Vue 성능 최적화](./vue/vue-performance.md) (준비 중)
+- Vue 핵심 개념 (준비 중)
+- Vue 성능 최적화 (준비 중)
+
+### 6. Workflow & CI/CD
+
+- [Git 워크플로우](./workflow/git-workflow.md)
+  - 트렁크 베이스 vs Git Flow
+  - Feature Flag 관리
+  - 코드 리뷰 자동화
 
 ---
 

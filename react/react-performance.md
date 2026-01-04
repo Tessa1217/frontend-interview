@@ -9,6 +9,7 @@
 - [Virtual DOM & Reconciliation](#virtual-dom--reconciliation)
 - [리스트 렌더링과 key](#리스트-렌더링과-key)
 - [React.memo, useMemo, useCallback](#reactmemo-usememo-usecallback)
+- [setState 배치 업데이트](#setstate-배치-업데이트)
 - [Code Splitting](#code-splitting)
 
 ---
@@ -438,6 +439,275 @@ function App() {
 
   return <UserList users={users} onUserClick={handleUserClick} />;
 }
+```
+
+---
+
+## setState 배치 업데이트
+
+### Q. setState가 비동기로 동작하고 배치 업데이트되는 원리는?
+
+**답변:**
+
+React는 여러 개의 `setState` 호출을 모아서 한 번에 처리하는 **배치 업데이트(Batch Update)**를 수행합니다.
+
+**1. 기본 동작:**
+
+```javascript
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  const handleClick = () => {
+    console.log("Before:", count); // 0
+
+    setCount(count + 1); // 1로 설정 요청
+    setCount(count + 1); // 1로 설정 요청 (같은 값!)
+    setCount(count + 1); // 1로 설정 요청 (같은 값!)
+
+    console.log("After:", count); // 0 (아직 업데이트 안 됨)
+
+    // 결과: count는 1이 됨 (3이 아님!)
+  };
+
+  return <button onClick={handleClick}>Count: {count}</button>;
+}
+```
+
+**왜 1일까?**
+
+- `handleClick` 함수가 실행되는 시점의 `count`는 0
+- `setCount(count + 1)`은 모두 `setCount(0 + 1)`
+- 배치 업데이트로 마지막 값 1만 적용
+
+**2. 함수형 업데이트 (올바른 방법):**
+
+```javascript
+const handleClick = () => {
+  setCount((prev) => prev + 1); // 0 + 1 = 1
+  setCount((prev) => prev + 1); // 1 + 1 = 2
+  setCount((prev) => prev + 1); // 2 + 1 = 3
+
+  // 결과: count는 3이 됨 ✅
+};
+```
+
+**3. React 17 vs React 18 배치 업데이트:**
+
+```javascript
+// React 17
+function Component() {
+  const [count, setCount] = useState(0);
+
+  // ✅ 배치됨 (React 이벤트 핸들러)
+  const handleClick = () => {
+    setCount((c) => c + 1);
+    setCount((c) => c + 1);
+    // 렌더링 1번
+  };
+
+  // ❌ 배치 안 됨 (비동기 콜백)
+  const handleAsync = () => {
+    setTimeout(() => {
+      setCount((c) => c + 1); // 렌더링 1번
+      setCount((c) => c + 1); // 렌더링 1번 → 총 2번!
+    }, 0);
+  };
+}
+
+// React 18 - Automatic Batching
+function Component() {
+  const [count, setCount] = useState(0);
+
+  // ✅ 배치됨
+  const handleClick = () => {
+    setCount((c) => c + 1);
+    setCount((c) => c + 1);
+  };
+
+  // ✅ 이제 배치됨! (React 18+)
+  const handleAsync = () => {
+    setTimeout(() => {
+      setCount((c) => c + 1);
+      setCount((c) => c + 1);
+      // 렌더링 1번만!
+    }, 0);
+  };
+
+  // ✅ Promise도 배치됨! (React 18+)
+  const handleFetch = async () => {
+    const data = await fetch("/api");
+    setCount((c) => c + 1);
+    setCount((c) => c + 1);
+    // 렌더링 1번만!
+  };
+}
+```
+
+**4. 이벤트 루프와의 관계:**
+
+```javascript
+// React 18 내부 메커니즘 (단순화)
+let updateQueue = [];
+let isFlushScheduled = false;
+
+function scheduleUpdate(update) {
+  updateQueue.push(update);
+
+  if (!isFlushScheduled) {
+    isFlushScheduled = true;
+
+    // 마이크로태스크 큐에 flush 작업 예약
+    queueMicrotask(() => {
+      flushUpdateQueue();
+      isFlushScheduled = false;
+    });
+  }
+}
+
+function flushUpdateQueue() {
+  // 큐의 모든 업데이트 일괄 처리
+  const updates = updateQueue;
+  updateQueue = [];
+
+  // 렌더링 수행
+  performRender(updates);
+}
+
+// 이벤트 루프 흐름:
+// 1. 동기 코드 (setState 여러 번)
+// 2. 콜 스택 비움
+// 3. 마이크로태스크 큐 실행
+// 4. flushUpdateQueue() → 배치 처리!
+// 5. 렌더링
+```
+
+**5. flushSync - 동기 강제 실행:**
+
+```javascript
+import { flushSync } from "react-dom";
+
+function SearchBox() {
+  const [query, setQuery] = useState("");
+  const listRef = useRef(null);
+
+  const handleChange = (e) => {
+    // ❌ 배치 업데이트 - DOM 업데이트 지연
+    setQuery(e.target.value);
+    listRef.current.scrollTop = 0; // query 업데이트 전 실행!
+
+    // ✅ 즉시 DOM 업데이트
+    flushSync(() => {
+      setQuery(e.target.value);
+    });
+    listRef.current.scrollTop = 0; // query 업데이트 후 실행!
+  };
+
+  return (
+    <div>
+      <input value={query} onChange={handleChange} />
+      <div ref={listRef}>{/* 검색 결과 */}</div>
+    </div>
+  );
+}
+```
+
+**⚠️ flushSync 주의사항:**
+
+```javascript
+// ❌ 나쁜 예: 불필요하게 자주 사용
+function Component() {
+  const handleClick = () => {
+    flushSync(() => setCount1((c) => c + 1)); // 렌더링 1
+    flushSync(() => setCount2((c) => c + 1)); // 렌더링 2
+    flushSync(() => setCount3((c) => c + 1)); // 렌더링 3
+    // 총 3번 렌더링 - 성능 저하!
+  };
+}
+
+// ✅ 좋은 예: 배치 활용
+function Component() {
+  const handleClick = () => {
+    setCount1((c) => c + 1);
+    setCount2((c) => c + 1);
+    setCount3((c) => c + 1);
+    // 1번만 렌더링 ✅
+  };
+}
+```
+
+**6. 클로저 함정:**
+
+```javascript
+function Component() {
+  const [count, setCount] = useState(0);
+
+  const handleClick = () => {
+    // 이 시점의 count: 0
+
+    setTimeout(() => {
+      console.log(count); // 1 (최신 렌더링의 count)
+      setCount(count + 1); // 0 + 1 = 1 (예상과 다를 수 있음!)
+    }, 1000);
+
+    setCount(count + 1); // 즉시 1로 업데이트
+  };
+
+  // 버튼 클릭 후 1초 뒤 count는?
+  // → 1 (2가 아님!)
+}
+
+// ✅ 해결: 함수형 업데이트
+const handleClick = () => {
+  setTimeout(() => {
+    setCount((prev) => prev + 1); // 현재 값 기준
+  }, 1000);
+
+  setCount((prev) => prev + 1);
+};
+```
+
+**7. 배치 업데이트 타임라인:**
+
+```javascript
+function App() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    console.log("A: useEffect", count);
+  }, [count]);
+
+  const handleClick = () => {
+    console.log("B: Before setState", count);
+
+    setCount((prev) => prev + 1);
+
+    console.log("C: After setState", count);
+
+    Promise.resolve().then(() => {
+      console.log("D: Promise microtask", count);
+    });
+
+    setTimeout(() => {
+      console.log("E: setTimeout macrotask", count);
+    }, 0);
+  };
+
+  console.log("F: Render", count);
+
+  return <button onClick={handleClick}>Click</button>;
+}
+
+// 첫 렌더링:
+// F: Render 0
+// A: useEffect 0
+
+// 버튼 클릭:
+// B: Before setState 0
+// C: After setState 0
+// D: Promise microtask 0
+// F: Render 1
+// A: useEffect 1
+// E: setTimeout macrotask 1
 ```
 
 ---

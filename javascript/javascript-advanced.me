@@ -1,0 +1,581 @@
+# JavaScript 심화
+
+[← 목차로 돌아가기](../README.md)
+
+---
+
+## 목차
+- [프로토타입 체이닝](#프로토타입-체이닝)
+- [typeof vs instanceof](#typeof-vs-instanceof)
+- [Symbol.hasInstance](#symbolhasinstance)
+- [WeakMap과 WeakRef](#weakmap과-weakref)
+
+---
+
+## 프로토타입 체이닝
+
+### Q. 프로토타입 체이닝은 어떻게 동작하나요?
+
+**답변:**
+
+프로토타입 체이닝은 객체에서 속성이나 메서드를 찾을 때, 해당 객체에 없으면 **프로토타입 체인을 따라 상위로 올라가며 찾는** 메커니즘입니다.
+
+**1. 프로토타입 체인 구조:**
+
+```javascript
+class Animal {
+  constructor(name) {
+    this.name = name;
+  }
+  
+  speak() {
+    console.log(`${this.name} makes a sound`);
+  }
+}
+
+class Dog extends Animal {
+  bark() {
+    console.log(`${this.name} barks`);
+  }
+}
+
+const myDog = new Dog('Max');
+
+// 프로토타입 체인:
+myDog
+  → Dog.prototype (bark)
+    → Animal.prototype (speak)
+      → Object.prototype (toString, hasOwnProperty 등)
+        → null
+```
+
+**속성 찾기 과정:**
+
+```javascript
+myDog.bark();  
+// 1. myDog에 bark가 있나? ❌
+// 2. Dog.prototype에 있나? ✅ 찾음!
+
+myDog.speak(); 
+// 1. myDog에 speak가 있나? ❌
+// 2. Dog.prototype에 있나? ❌
+// 3. Animal.prototype에 있나? ✅ 찾음!
+
+myDog.toString();
+// 1. myDog에 있나? ❌
+// 2. Dog.prototype에 있나? ❌
+// 3. Animal.prototype에 있나? ❌
+// 4. Object.prototype에 있나? ✅ 찾음!
+
+myDog.nonExistent;
+// 1~5 모두 없음 → undefined 반환
+```
+
+**2. 프로토타입 직접 확인:**
+
+```javascript
+console.log(Object.getPrototypeOf(myDog) === Dog.prototype); // true
+console.log(Object.getPrototypeOf(Dog.prototype) === Animal.prototype); // true
+console.log(Object.getPrototypeOf(Animal.prototype) === Object.prototype); // true
+console.log(Object.getPrototypeOf(Object.prototype)); // null
+
+// __proto__ (비추천, deprecated)
+console.log(myDog.__proto__ === Dog.prototype); // true
+```
+
+**3. 프로토타입 동적 수정:**
+
+```javascript
+// 프로토타입에 메서드 추가
+Dog.prototype.wagTail = function() {
+  console.log(`${this.name} wags tail`);
+};
+
+// 기존 인스턴스도 즉시 사용 가능!
+myDog.wagTail(); // "Max wags tail"
+
+// 새 인스턴스도 사용 가능
+const anotherDog = new Dog('Buddy');
+anotherDog.wagTail(); // "Buddy wags tail"
+```
+
+**4. 프로토타입 체인의 성능:**
+
+```javascript
+// ❌ 나쁜 예: 깊은 체인
+class A {}
+class B extends A {}
+class C extends B {}
+class D extends C {}
+class E extends D {}
+
+const e = new E();
+// 속성 찾기 시 5단계 체인 검색!
+```
+
+**5. ES6 클래스와 프로토타입:**
+
+```javascript
+// ES6 클래스
+class Person {
+  constructor(name) {
+    this.name = name;
+  }
+  
+  greet() {
+    console.log(`Hello, I'm ${this.name}`);
+  }
+}
+
+// 실제로는 이렇게 변환됨:
+function Person(name) {
+  this.name = name;
+}
+
+Person.prototype.greet = function() {
+  console.log(`Hello, I'm ${this.name}`);
+};
+```
+
+**6. super 키워드 동작:**
+
+```javascript
+class Animal {
+  constructor(name) {
+    this.name = name;
+  }
+  
+  speak() {
+    return `${this.name} makes a sound`;
+  }
+}
+
+class Dog extends Animal {
+  speak() {
+    const parentResult = super.speak(); // 부모 메서드 호출
+    return `${parentResult} and barks`;
+  }
+}
+
+const dog = new Dog('Max');
+console.log(dog.speak()); // "Max makes a sound and barks"
+
+// super의 내부 동작 (단순화):
+// 1. Animal.prototype.speak 찾기
+// 2. 현재 인스턴스(this)로 호출
+```
+
+---
+
+## typeof vs instanceof
+
+### Q. `typeof`와 `instanceof`의 차이점은 무엇인가요?
+
+**답변:**
+
+| 특징 | typeof | instanceof |
+|------|--------|-----------|
+| **반환값** | 문자열 | boolean |
+| **체크 대상** | 원시 타입 + 함수 | 객체 인스턴스 |
+| **프로토타입 체인** | ❌ 무관 | ✅ 체인 검사 |
+
+**1. typeof 반환값:**
+
+```javascript
+// 원시 타입
+typeof 'hello'        // "string"
+typeof 123            // "number"
+typeof true           // "boolean"
+typeof undefined      // "undefined"
+typeof Symbol('id')   // "symbol"
+typeof 123n           // "bigint"
+
+// 객체 타입
+typeof {}             // "object"
+typeof []             // "object" ⚠️
+typeof null           // "object" ⚠️ 버그
+typeof function(){}   // "function" ⚠️
+
+// 생성자 vs 인스턴스
+typeof Array          // "function" (Array는 생성자)
+typeof [1, 2, 3]      // "object"  (배열 인스턴스)
+typeof Date           // "function"
+typeof new Date()     // "object"
+```
+
+**2. instanceof 동작:**
+
+```javascript
+class Animal {}
+class Dog extends Animal {}
+
+const myDog = new Dog();
+
+// 프로토타입 체인 검사
+myDog instanceof Dog      // true
+myDog instanceof Animal   // true
+myDog instanceof Object   // true (모든 객체)
+
+// 배열 체크
+[] instanceof Array       // true
+[] instanceof Object      // true
+
+// 원시 타입은 불가
+'hello' instanceof String // false
+new String('hello') instanceof String // true
+```
+
+**3. instanceof 내부 동작:**
+
+```javascript
+// 단순화된 구현
+function customInstanceof(obj, Constructor) {
+  // 원시 타입은 false
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
+  
+  let proto = Object.getPrototypeOf(obj);
+  
+  while (proto !== null) {
+    if (proto === Constructor.prototype) {
+      return true;
+    }
+    proto = Object.getPrototypeOf(proto);
+  }
+  
+  return false;
+}
+
+// 사용
+const dog = new Dog();
+console.log(customInstanceof(dog, Dog));    // true
+console.log(customInstanceof(dog, Animal)); // true
+console.log(customInstanceof(dog, Array));  // false
+```
+
+**4. 크로스 프레임 문제:**
+
+```javascript
+// iframe의 Array
+const iframeArray = iframe.contentWindow.Array;
+const arr = new iframeArray(1, 2, 3);
+
+arr instanceof Array      // false! ⚠️ (다른 컨텍스트)
+Array.isArray(arr)        // true ✅ (안전한 방법)
+
+// 해결: Array.isArray 사용
+function isArray(value) {
+  return Array.isArray(value);
+}
+```
+
+**5. 실전 타입 체크:**
+
+```javascript
+// 배열 체크
+Array.isArray(value)  // ✅
+
+// null 체크
+value === null  // ✅
+
+// 객체 체크 (null 제외)
+typeof value === 'object' && value !== null  // ✅
+
+// 함수 체크
+typeof callback === 'function'  // ✅
+
+// 특정 클래스 인스턴스
+value instanceof MyClass  // ✅
+
+// 날짜 체크
+value instanceof Date  // ✅
+
+// 에러 체크
+value instanceof Error  // ✅
+```
+
+---
+
+## Symbol.hasInstance
+
+### Q. Symbol.hasInstance로 instanceof를 커스터마이징할 수 있나요?
+
+**답변:**
+
+네! ES6의 `Symbol.hasInstance`를 사용하면 `instanceof` 연산자의 동작을 커스터마이징할 수 있습니다.
+
+**1. 기본 사용법:**
+
+```javascript
+class MyArray {
+  static [Symbol.hasInstance](instance) {
+    // 커스텀 로직
+    return Array.isArray(instance);
+  }
+}
+
+// 사용
+[1, 2, 3] instanceof MyArray  // true!
+{ a: 1 } instanceof MyArray   // false
+
+// MyArray의 실제 인스턴스가 아니어도 true 반환 가능!
+```
+
+**2. 타입 체크 유틸리티:**
+
+```javascript
+class Integer {
+  static [Symbol.hasInstance](value) {
+    return typeof value === 'number' && 
+           Number.isInteger(value) &&
+           !Number.isNaN(value);
+  }
+}
+
+class PositiveNumber {
+  static [Symbol.hasInstance](value) {
+    return typeof value === 'number' && value > 0;
+  }
+}
+
+// 사용
+42 instanceof Integer           // true
+3.14 instanceof Integer         // false
+"42" instanceof Integer         // false
+
+10 instanceof PositiveNumber    // true
+-5 instanceof PositiveNumber    // false
+```
+
+**3. Duck Typing 구현:**
+
+```javascript
+class Clickable {
+  static [Symbol.hasInstance](obj) {
+    // 인터페이스 체크
+    return obj !== null &&
+           typeof obj === 'object' &&
+           typeof obj.click === 'function';
+  }
+}
+
+const button = {
+  click() { console.log('Clicked!'); }
+};
+
+const div = {
+  render() { console.log('Rendered'); }
+};
+
+button instanceof Clickable  // true ✅
+div instanceof Clickable     // false
+```
+
+**4. React 컴포넌트 체크:**
+
+```javascript
+class ReactComponent {
+  static [Symbol.hasInstance](instance) {
+    return instance !== null &&
+           typeof instance === 'object' &&
+           typeof instance.render === 'function' &&
+           (instance.isReactComponent === true ||
+            instance.$$typeof === Symbol.for('react.element'));
+  }
+}
+
+// 사용 (가상 예시)
+if (component instanceof ReactComponent) {
+  // React 컴포넌트 처리
+}
+```
+
+**5. 복합 타입 체크:**
+
+```javascript
+class Numeric {
+  static [Symbol.hasInstance](value) {
+    return typeof value === 'number' || 
+           typeof value === 'bigint' ||
+           value instanceof Number;
+  }
+}
+
+// 사용
+123 instanceof Numeric           // true
+123n instanceof Numeric          // true
+new Number(456) instanceof Numeric // true
+"123" instanceof Numeric         // false
+```
+
+---
+
+## WeakMap과 WeakRef
+
+### Q. WeakMap과 Map의 차이는 무엇이고, WeakRef는 무엇인가요?
+
+**답변:**
+
+**1. WeakMap vs Map:**
+
+| 특징 | Map | WeakMap |
+|------|-----|---------|
+| **키 타입** | 모든 타입 | 객체만 |
+| **참조 방식** | 강한 참조 | 약한 참조 |
+| **GC** | 명시적 delete 필요 | 자동 GC 가능 |
+| **이터레이션** | 가능 | 불가능 |
+| **size** | 있음 | 없음 |
+
+```javascript
+// Map: 강한 참조
+const map = new Map();
+let obj = { data: 'heavy' };
+
+map.set(obj, 'value');
+obj = null; // obj 참조 제거
+
+// ❌ map에 여전히 { data: 'heavy' }가 남아있음!
+console.log(map.size); // 1
+
+// WeakMap: 약한 참조
+const weakMap = new WeakMap();
+let obj2 = { data: 'heavy' };
+
+weakMap.set(obj2, 'value');
+obj2 = null; // obj2 참조 제거
+
+// ✅ weakMap의 엔트리도 자동으로 GC됨!
+// (즉시 확인은 불가 - GC는 비동기)
+```
+
+**2. WeakMap 활용 - Private 데이터:**
+
+```javascript
+const privateData = new WeakMap();
+
+class User {
+  constructor(name, password) {
+    this.name = name;
+    // password를 WeakMap에 저장
+    privateData.set(this, { password });
+  }
+  
+  checkPassword(inputPassword) {
+    const data = privateData.get(this);
+    return data.password === inputPassword;
+  }
+}
+
+const user = new User('Alice', 'secret123');
+console.log(user.name);              // "Alice"
+console.log(user.password);          // undefined (접근 불가!)
+console.log(user.checkPassword('secret123')); // true
+```
+
+**3. WeakRef (ES2021):**
+
+```javascript
+// 약한 참조 생성
+let obj = { data: 'important' };
+const weakRef = new WeakRef(obj);
+
+// 원본 객체 접근
+console.log(weakRef.deref()); // { data: 'important' }
+
+// 원본 제거
+obj = null;
+
+// GC 후 (시간이 지나면)
+console.log(weakRef.deref()); // undefined (GC됨)
+```
+
+**4. WeakRef 활용 - 캐시 구현:**
+
+```javascript
+class ImageCache {
+  constructor() {
+    this.cache = new Map();
+  }
+  
+  set(url, image) {
+    // 이미지를 WeakRef로 저장
+    this.cache.set(url, new WeakRef(image));
+  }
+  
+  get(url) {
+    const ref = this.cache.get(url);
+    if (!ref) return null;
+    
+    const image = ref.deref();
+    
+    if (image === undefined) {
+      // GC되었으면 캐시에서 제거
+      this.cache.delete(url);
+      return null;
+    }
+    
+    return image;
+  }
+}
+
+// 사용
+const cache = new ImageCache();
+let img = new Image();
+img.src = 'photo.jpg';
+
+cache.set('photo.jpg', img);
+console.log(cache.get('photo.jpg')); // Image 객체
+
+img = null; // 참조 제거
+// GC 후 자동으로 캐시에서 제거됨
+```
+
+**5. FinalizationRegistry (ES2021):**
+
+```javascript
+// 객체가 GC될 때 콜백 실행
+const registry = new FinalizationRegistry((heldValue) => {
+  console.log(`${heldValue}가 GC되었습니다`);
+});
+
+let obj = { id: 1 };
+registry.register(obj, 'Object 1');
+
+obj = null;
+// GC 후: "Object 1가 GC되었습니다" 출력
+```
+
+**6. 메모리 누수 방지 패턴:**
+
+```javascript
+// ❌ 메모리 누수
+function createLeakyClosure() {
+  const hugeData = new Array(1000000).fill('data');
+  
+  return {
+    getData: () => hugeData  // 강한 참조
+  };
+}
+
+// ✅ WeakMap으로 개선
+const dataStorage = new WeakMap();
+
+function createOptimizedClosure() {
+  const hugeData = new Array(1000000).fill('data');
+  const key = {};
+  
+  dataStorage.set(key, hugeData);
+  
+  return {
+    getData: () => dataStorage.get(key)
+  };
+}
+
+const closure = createOptimizedClosure();
+// closure가 제거되면 hugeData도 GC 가능!
+```
+
+---
+
+[← 목차로 돌아가기](../README.md)

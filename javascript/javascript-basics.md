@@ -9,6 +9,7 @@
 - [undefined vs null](#undefined-vs-null)
 - [var, let, const 차이](#var-let-const-차이)
 - [호이스팅 (Hoisting)](#호이스팅-hoisting)
+- [클로저 (Closure)](#클로저-closure)
 - [이벤트 루프 (Event Loop)](#이벤트-루프-event-loop)
 - [마이크로태스크 vs 매크로태스크](#마이크로태스크-vs-매크로태스크)
 
@@ -244,6 +245,188 @@ function foo() {
 
 console.log(typeof foo); // "function"
 // 함수 선언이 변수 선언보다 우선!
+```
+
+---
+
+## 클로저 (Closure)
+
+### Q. 클로저란 무엇이고, 어떻게 동작하나요?
+
+**답변:**
+
+클로저는 함수가 선언된 **렉시컬 환경(Lexical Environment)**을 기억하여, 외부 함수의 실행이 종료된 후에도 외부 함수의 변수에 접근할 수 있는 메커니즘입니다.
+
+**1. 기본 클로저:**
+
+```javascript
+function outerFunction() {
+  let count = 0; // 외부 함수의 변수
+
+  function innerFunction() {
+    count++; // 외부 변수 접근!
+    console.log(count);
+  }
+
+  return innerFunction;
+}
+
+const counter = outerFunction();
+// outerFunction 실행 종료되었지만...
+
+counter(); // 1 - count에 접근 가능!
+counter(); // 2
+counter(); // 3
+```
+
+**왜 가능할까?**
+
+- `innerFunction`이 `count`를 참조
+- 가비지 컬렉터가 `count`를 해제하지 않음 (참조 카운트 > 0)
+- `counter` 변수가 살아있는 한 `count`도 메모리에 유지
+
+**2. 클로저의 활용 - 은닉화:**
+
+```javascript
+function createBankAccount(initialBalance) {
+  let balance = initialBalance; // private 변수
+
+  return {
+    deposit(amount) {
+      balance += amount;
+      return balance;
+    },
+    withdraw(amount) {
+      if (balance >= amount) {
+        balance -= amount;
+        return balance;
+      }
+      return "잔액 부족";
+    },
+    getBalance() {
+      return balance;
+    },
+  };
+}
+
+const account = createBankAccount(1000);
+console.log(account.getBalance()); // 1000
+account.deposit(500); // 1500
+account.withdraw(200); // 1300
+
+// balance에 직접 접근 불가능!
+console.log(account.balance); // undefined
+```
+
+**3. 메모리 누수 위험:**
+
+```javascript
+// ❌ 나쁜 예: 대용량 객체 클로저
+function createHeavyClosure() {
+  const hugeArray = new Array(1000000).fill("data");
+
+  return function () {
+    console.log("작은 함수");
+    // hugeArray를 사용하지 않지만 메모리에 계속 유지됨!
+  };
+}
+
+const leak = createHeavyClosure();
+// hugeArray가 GC되지 않음 - 메모리 누수!
+```
+
+**해결 방법:**
+
+```javascript
+// ✅ 좋은 예: 필요한 것만 참조
+function createOptimizedClosure() {
+  const hugeArray = new Array(1000000).fill("data");
+  const summary = hugeArray.length; // 필요한 정보만 추출
+
+  return function () {
+    console.log(`배열 크기: ${summary}`);
+    // summary만 참조 - hugeArray는 GC 가능!
+  };
+}
+```
+
+**4. WeakMap으로 메모리 누수 방지:**
+
+```javascript
+function createCache() {
+  const cache = new WeakMap();
+
+  return {
+    set(key, value) {
+      cache.set(key, value);
+    },
+    get(key) {
+      return cache.get(key);
+    },
+  };
+}
+
+const cache = createCache();
+let obj = { id: 1 };
+
+cache.set(obj, { data: "heavy" });
+obj = null; // obj 참조 제거 → cache의 엔트리도 GC됨!
+```
+
+**5. 클로저 활용 - 메모이제이션:**
+
+```javascript
+function memoize(fn) {
+  const cache = {};
+
+  return function (...args) {
+    const key = JSON.stringify(args);
+
+    if (key in cache) {
+      console.log("캐시에서 반환");
+      return cache[key];
+    }
+
+    console.log("계산 수행");
+    const result = fn(...args);
+    cache[key] = result;
+    return result;
+  };
+}
+
+const factorial = memoize(function (n) {
+  return n <= 1 ? 1 : n * factorial(n - 1);
+});
+
+console.log(factorial(5)); // 계산 수행: 120
+console.log(factorial(5)); // 캐시에서 반환: 120
+```
+
+**6. 클로저 주의사항 - 루프:**
+
+```javascript
+// ❌ 나쁜 예
+for (var i = 0; i < 3; i++) {
+  setTimeout(function () {
+    console.log(i); // 3, 3, 3 (모두 같은 i 참조!)
+  }, 100);
+}
+
+// ✅ 해결 1: let 사용 (블록 스코프)
+for (let i = 0; i < 3; i++) {
+  setTimeout(function () {
+    console.log(i); // 0, 1, 2
+  }, 100);
+}
+
+// ✅ 해결 2: 즉시 실행 함수 (IIFE)
+for (var i = 0; i < 3; i++) {
+  (function (j) {
+    setTimeout(function () {
+      console.log(j); // 0, 1, 2
+    }, 100);
+  })(i);
+}
 ```
 
 ---
