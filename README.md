@@ -39,10 +39,21 @@ React, JavaScript, TypeScript, 브라우저 동작 원리, CSS 등 프론트엔�
 
 ### 5. Vue
 
-- Vue 핵심 개념 (준비 중)
-- Vue 성능 최적화 (준비 중)
+- [Vue 핵심 개념](./vue/vue-core.md)
+  - Composition API vs Options API
+  - ref vs reactive, toRefs/toRef
+  - Computed vs Watch
+  - 라이프사이클 훅
 
-### 6. Workflow & CI/CD
+### 6. 번들러
+
+- [Vite vs Webpack](./bundlers/vite-vs-webpack.md)
+  - Vite가 빠른 이유
+  - Pre-bundling (개발 환경)
+  - ES Modules
+  - 번들러 선택 가이드
+
+### 7. Workflow & CI/CD
 
 - [Git 워크플로우](./workflow/git-workflow.md)
   - 트렁크 베이스 vs Git Flow
